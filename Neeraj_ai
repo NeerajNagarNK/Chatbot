@@ -3,15 +3,43 @@ from flask import Flask, render_template, request, jsonify
 import requests
 import json
 from datetime import datetime
+import pyttsx3
+import speech_recognition as sr
+import wikipedia
+import webbrowser
 
 app = Flask(__name__)
 
 class NeerajAI:
     def __init__(self):
         self.conversation_history = []
+        # Initialize text-to-speech engine
+        try:
+            self.engine = pyttsx3.init()
+            voices = self.engine.getProperty('voices')
+            if voices:
+                # Use first available voice
+                self.engine.setProperty('voice', voices[0].id)
+            self.engine.setProperty('rate', 180)  # Speed of speech
+            self.engine.setProperty('volume', 0.9)  # Volume level
+        except:
+            self.engine = None
+            print("TTS engine initialization failed")
+        
+        # Initialize speech recognition
+        self.recognizer = sr.Recognizer()
+        self.recognizer.pause_threshold = 1
+        self.recognizer.energy_threshold = 600
     
     def speak(self, text):
-        """Text-to-speech function simulation"""
+        """Enhanced text-to-speech function"""
+        if self.engine:
+            try:
+                self.engine.say(text)
+                self.engine.runAndWait()
+            except:
+                pass
+        
         return {
             "text": text,
             "speech_enabled": True,
@@ -22,8 +50,33 @@ class NeerajAI:
             }
         }
     
+    def wishme(self):
+        """Greeting based on time of day"""
+        hour = int(datetime.now().hour)
+        if hour >= 0 and hour < 12:
+            greeting = "Good Morning! I am Neeraj, your AI assistant created by CodeWithNeeraj for helping humans."
+        elif hour >= 12 and hour < 18:
+            greeting = "Good Afternoon! I am Neeraj, your AI assistant created by CodeWithNeeraj for helping humans."
+        else:
+            greeting = "Good Evening! I am Neeraj, your AI assistant created by CodeWithNeeraj for helping humans."
+        
+        return greeting
+    
+    def search_wikipedia(self, query):
+        """Search Wikipedia for information"""
+        try:
+            query = query.replace("wikipedia", "").strip()
+            result = wikipedia.summary(query, sentences=2)
+            return f"According to Wikipedia: {result}"
+        except wikipedia.exceptions.DisambiguationError as e:
+            return f"Multiple results found for '{query}'. Could you be more specific? Options include: {', '.join(e.options[:3])}"
+        except wikipedia.exceptions.PageError:
+            return f"Sorry, I couldn't find any Wikipedia page for '{query}'"
+        except Exception as e:
+            return "Sorry, I couldn't search Wikipedia right now."
+    
     def get_response(self, user_input):
-        """Generate AI response with suggestions"""
+        """Generate AI response with enhanced functionality"""
         response_data = {
             "answer": "",
             "suggestions": [],
@@ -38,7 +91,39 @@ class NeerajAI:
         # Process different types of queries
         user_lower = user_input.lower()
         
-        if "weather" in user_lower:
+        if "hello" in user_lower or "hi" in user_lower:
+            answer = self.wishme()
+            response_data["answer"] = answer
+            response_data["speech"] = self.speak(answer)
+            response_data["suggestions"] = [
+                "Ask me about weather, calculations, or general information",
+                "I can search Wikipedia for you",
+                "Try asking 'What time is it?'"
+            ]
+        
+        elif "wikipedia" in user_lower:
+            answer = self.search_wikipedia(user_input)
+            response_data["answer"] = answer
+            response_data["speech"] = self.speak(answer)
+            response_data["suggestions"] = [
+                "Ask me about another topic",
+                "Would you like more detailed information?"
+            ]
+        
+        elif "time" in user_lower or "date" in user_lower:
+            current_time = datetime.now()
+            if "time" in user_lower:
+                answer = f"The current time is {current_time.strftime('%H:%M:%S')}."
+            else:
+                answer = f"Today's date is {current_time.strftime('%B %d, %Y')}."
+            response_data["answer"] = answer
+            response_data["speech"] = self.speak(answer)
+            response_data["suggestions"] = [
+                "Would you like me to help you set reminders?",
+                "I can help you calculate time differences between time zones"
+            ]
+        
+        elif "weather" in user_lower:
             answer = "I'd need access to a weather API to provide current weather data. However, I can suggest checking weather.com or your local weather app."
             response_data["answer"] = answer
             response_data["speech"] = self.speak(answer)
@@ -47,14 +132,40 @@ class NeerajAI:
                 "I can help you plan indoor activities for rainy days"
             ]
         
-        elif "time" in user_lower or "date" in user_lower:
-            current_time = datetime.now()
-            answer = f"The current time is {current_time.strftime('%H:%M:%S')} and today's date is {current_time.strftime('%B %d, %Y')}."
+        elif "youtube" in user_lower:
+            answer = "I can help you with YouTube! What would you like to know or do?"
             response_data["answer"] = answer
             response_data["speech"] = self.speak(answer)
             response_data["suggestions"] = [
-                "Would you like me to help you set reminders?",
-                "I can help you calculate time differences between time zones"
+                "Ask me about video topics",
+                "I can suggest YouTube channels for learning"
+            ]
+        
+        elif "google" in user_lower:
+            answer = "I can help you with Google searches! What would you like to search for?"
+            response_data["answer"] = answer
+            response_data["speech"] = self.speak(answer)
+            response_data["suggestions"] = [
+                "Tell me what you want to search",
+                "I can help you find specific information"
+            ]
+        
+        elif "music" in user_lower or "song" in user_lower:
+            answer = "I'd love to help with music! While I can't play music directly, I can suggest music streaming services or help you find information about songs and artists."
+            response_data["answer"] = answer
+            response_data["speech"] = self.speak(answer)
+            response_data["suggestions"] = [
+                "Ask me about a specific artist or song",
+                "I can suggest music streaming platforms"
+            ]
+        
+        elif "story" in user_lower:
+            answer = "Here's a classic story: The Lion's Share - The lion took all portions of a hunt, leaving none for others. Moral: The strong often exploit the weak. The Boy Who Cried Wolf - A young boy tending sheep lied about a wolf attacking them. When a real wolf came, no one believed him. Moral: Always tell the truth; otherwise, people won't believe you when it matters."
+            response_data["answer"] = answer
+            response_data["speech"] = self.speak(answer)
+            response_data["suggestions"] = [
+                "Would you like to hear another story?",
+                "I can share more moral stories"
             ]
         
         elif "calculate" in user_lower or "math" in user_lower:
@@ -66,50 +177,32 @@ class NeerajAI:
                 "Would you like help with geometry or statistics?"
             ]
         
-        elif "hello" in user_lower or "hi" in user_lower:
-            answer = "Hello! I'm Neeraj, your AI assistant created by Code With Neeraj for helping humans. I'm ready to help you with questions and provide intelligent suggestions."
-            response_data["answer"] = answer
-            response_data["speech"] = self.speak(answer)
-            response_data["suggestions"] = [
-                "Ask me about weather, calculations, or general information",
-                "I can help you search for information on various topics"
-            ]
-        
-        elif "news" in user_lower:
-            answer = "I can help you stay updated with current events. While I don't have real-time news access, I can suggest reliable news sources."
-            response_data["answer"] = answer
-            response_data["speech"] = self.speak(answer)
-            response_data["suggestions"] = [
-                "Would you like recommendations for trusted news websites?",
-                "I can help you understand different perspectives on current events"
-            ]
-        
         elif "help" in user_lower:
-            answer = "I'm Neeraj, created by CodeWithNeeraj for helping humans! I can answer questions, provide suggestions, and help with various tasks."
+            answer = "I'm Neeraj, created by CodeWithNeeraj for helping humans! I can answer questions, search Wikipedia, tell stories, provide time/date information, and help with various tasks."
             response_data["answer"] = answer
             response_data["speech"] = self.speak(answer)
             response_data["suggestions"] = [
-                "Try asking me about weather, time, calculations, or general knowledge",
+                "Try asking me about Wikipedia searches, time, stories, or calculations",
                 "I can also help you brainstorm ideas or solve problems"
             ]
         
         else:
-            # General response with internet search simulation
-            answer = f"I understand you're asking about '{user_input}'. While I don't have real-time internet access in this demo, I can provide general guidance and suggestions."
+            # General response with enhanced capabilities
+            answer = f"I understand you're asking about '{user_input}'. I can help you search for information, answer questions, or provide assistance with various topics."
             response_data["answer"] = answer
             response_data["speech"] = self.speak(answer)
             response_data["suggestions"] = [
-                "Would you like me to break down this topic into smaller parts?",
-                "I can suggest related topics you might find interesting"
+                "Try asking me to search Wikipedia for this topic",
+                "Would you like me to break down this topic into smaller parts?"
             ]
             
             # Simulate search results
             response_data["search_results"] = {
                 "query": user_input,
                 "results": [
-                    "Related information would be gathered from reliable sources",
-                    "Multiple perspectives and expert opinions would be included",
-                    "Recent developments and updates would be highlighted"
+                    "I can search Wikipedia for detailed information",
+                    "I can provide explanations and help with understanding",
+                    "I can suggest related topics you might find interesting"
                 ]
             }
         
@@ -142,6 +235,15 @@ def get_history():
 def clear_history():
     neeraj.conversation_history = []
     return jsonify({"status": "History cleared"})
+
+@app.route('/speech', methods=['POST'])
+def process_speech():
+    """Process speech input (placeholder for future implementation)"""
+    try:
+        # This would be used for actual speech recognition in a full implementation
+        return jsonify({"status": "Speech processing not fully implemented in web version"})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
 
 if __name__ == '__main__':
     # For development only - use gunicorn for production
