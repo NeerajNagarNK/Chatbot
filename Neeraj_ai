@@ -1,0 +1,148 @@
+import os
+from flask import Flask, render_template, request, jsonify
+import requests
+import json
+from datetime import datetime
+
+app = Flask(__name__)
+
+class NeerajAI:
+    def __init__(self):
+        self.conversation_history = []
+    
+    def speak(self, text):
+        """Text-to-speech function simulation"""
+        return {
+            "text": text,
+            "speech_enabled": True,
+            "voice_settings": {
+                "voice": "en-US-Neural2-D",
+                "speed": 1.0,
+                "pitch": 0
+            }
+        }
+    
+    def get_response(self, user_input):
+        """Generate AI response with suggestions"""
+        response_data = {
+            "answer": "",
+            "suggestions": [],
+            "search_results": None,
+            "timestamp": datetime.now().strftime("%H:%M:%S"),
+            "speech": None
+        }
+        
+        # Store conversation
+        self.conversation_history.append({"user": user_input, "timestamp": response_data["timestamp"]})
+        
+        # Process different types of queries
+        user_lower = user_input.lower()
+        
+        if "weather" in user_lower:
+            answer = "I'd need access to a weather API to provide current weather data. However, I can suggest checking weather.com or your local weather app."
+            response_data["answer"] = answer
+            response_data["speech"] = self.speak(answer)
+            response_data["suggestions"] = [
+                "Would you like tips for dressing for different weather conditions?",
+                "I can help you plan indoor activities for rainy days"
+            ]
+        
+        elif "time" in user_lower or "date" in user_lower:
+            current_time = datetime.now()
+            answer = f"The current time is {current_time.strftime('%H:%M:%S')} and today's date is {current_time.strftime('%B %d, %Y')}."
+            response_data["answer"] = answer
+            response_data["speech"] = self.speak(answer)
+            response_data["suggestions"] = [
+                "Would you like me to help you set reminders?",
+                "I can help you calculate time differences between time zones"
+            ]
+        
+        elif "calculate" in user_lower or "math" in user_lower:
+            answer = "I can help with calculations! Please provide the specific math problem you'd like me to solve."
+            response_data["answer"] = answer
+            response_data["speech"] = self.speak(answer)
+            response_data["suggestions"] = [
+                "I can solve equations, convert units, or calculate percentages",
+                "Would you like help with geometry or statistics?"
+            ]
+        
+        elif "hello" in user_lower or "hi" in user_lower:
+            answer = "Hello! I'm Neeraj, your AI assistant created by Code With Neeraj for helping humans. I'm ready to help you with questions and provide intelligent suggestions."
+            response_data["answer"] = answer
+            response_data["speech"] = self.speak(answer)
+            response_data["suggestions"] = [
+                "Ask me about weather, calculations, or general information",
+                "I can help you search for information on various topics"
+            ]
+        
+        elif "news" in user_lower:
+            answer = "I can help you stay updated with current events. While I don't have real-time news access, I can suggest reliable news sources."
+            response_data["answer"] = answer
+            response_data["speech"] = self.speak(answer)
+            response_data["suggestions"] = [
+                "Would you like recommendations for trusted news websites?",
+                "I can help you understand different perspectives on current events"
+            ]
+        
+        elif "help" in user_lower:
+            answer = "I'm Neeraj, created by CodeWithNeeraj for helping humans! I can answer questions, provide suggestions, and help with various tasks."
+            response_data["answer"] = answer
+            response_data["speech"] = self.speak(answer)
+            response_data["suggestions"] = [
+                "Try asking me about weather, time, calculations, or general knowledge",
+                "I can also help you brainstorm ideas or solve problems"
+            ]
+        
+        else:
+            # General response with internet search simulation
+            answer = f"I understand you're asking about '{user_input}'. While I don't have real-time internet access in this demo, I can provide general guidance and suggestions."
+            response_data["answer"] = answer
+            response_data["speech"] = self.speak(answer)
+            response_data["suggestions"] = [
+                "Would you like me to break down this topic into smaller parts?",
+                "I can suggest related topics you might find interesting"
+            ]
+            
+            # Simulate search results
+            response_data["search_results"] = {
+                "query": user_input,
+                "results": [
+                    "Related information would be gathered from reliable sources",
+                    "Multiple perspectives and expert opinions would be included",
+                    "Recent developments and updates would be highlighted"
+                ]
+            }
+        
+        return response_data
+    
+    def get_conversation_history(self):
+        return self.conversation_history
+
+# Initialize AI assistant
+neeraj = NeerajAI()
+
+@app.route('/')
+def home():
+    return render_template('index.html')
+
+@app.route('/chat', methods=['POST'])
+def chat():
+    user_message = request.json.get('message', '')
+    if not user_message:
+        return jsonify({"error": "No message provided"}), 400
+    
+    response = neeraj.get_response(user_message)
+    return jsonify(response)
+
+@app.route('/history')
+def get_history():
+    return jsonify(neeraj.get_conversation_history())
+
+@app.route('/clear_history', methods=['POST'])
+def clear_history():
+    neeraj.conversation_history = []
+    return jsonify({"status": "History cleared"})
+
+if __name__ == '__main__':
+    # For development only - use gunicorn for production
+    app.run(host='0.0.0.0', port=5000, debug=True)
